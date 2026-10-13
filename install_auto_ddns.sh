@@ -58,7 +58,20 @@ if [ ! -f "$OCI_PYTHON" ]; then
 fi
 echo -e "${GREEN}[+] OCI SDK 环境就绪: $OCI_PYTHON${PLAIN}"
 
-# 4. 自动探测实例信息与权限
+# 4. 自动分发核心 Python 脚本到 /usr/local/bin
+TARGET_PY="/usr/local/bin/oci_change_ip_ddns.py"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if [ -f "$SCRIPT_DIR/oci_change_ip_ddns.py" ]; then
+    cp "$SCRIPT_DIR/oci_change_ip_ddns.py" "$TARGET_PY"
+else
+    echo -e "[*] 正在从 GitHub 下载最新核心业务脚本..."
+    curl -sSL https://raw.githubusercontent.com/Wiltiness/Oracle_IP_Auto_exchange_ipv4/master/oci_change_ip_ddns.py -o "$TARGET_PY"
+fi
+chmod +x "$TARGET_PY"
+echo -e "${GREEN}[+] 核心业务脚本已部署: $TARGET_PY${PLAIN}"
+
+# 5. 自动探测实例信息与权限
 echo -e "\n${YELLOW}[2/4] 自动探测服务器地理元数据与租户名...${PLAIN}"
 INST_JSON=$(curl -s -H "Authorization: Bearer Oracle" http://169.254.169.254/opc/v2/instance/)
 INST_ID=$(echo "$INST_JSON" | grep -o '"id": "ocid1\.instance\.[^"]*"' | head -n 1 | awk -F'"' '{print $4}')
@@ -66,7 +79,7 @@ TENANCY_OCID=$(echo "$INST_JSON" | grep -o '"tenantId": "[^"]*"' | head -n 1 | a
 REGION_KEY=$(echo "$INST_JSON" | grep -o '"regionKey": "[^"]*"' | head -n 1 | awk -F'"' '{print $4}' | tr '[:upper:]' '[:lower:]')
 OCID_4=$(echo "$INST_ID" | tail -c 5 | head -c 4)
 
-# 权限验证
+# 权限探测
 VNIC_ID=$(curl -s -H "Authorization: Bearer Oracle" http://169.254.169.254/opc/v2/vnics/ | grep -o '"vnicId": "[^"]*"' | head -n 1 | awk -F'"' '{print $4}')
 TEST_AUTH=$(/root/bin/oci network vnic get --vnic-id "$VNIC_ID" --auth instance_principal 2>&1 || true)
 if echo "$TEST_AUTH" | grep -q "NotAuthorizedOrNotFound"; then
@@ -76,7 +89,7 @@ if echo "$TEST_AUTH" | grep -q "NotAuthorizedOrNotFound"; then
 fi
 echo -e "${GREEN}[+] OCI 实例主体鉴权验证通过！${PLAIN}"
 
-# 通过接口 100% 自动获取真实租户名
+# 自动读取真实租户名
 echo -e "[*] 正在通过 API 自动读取真实租户名..."
 TENANT_NAME=$(/root/bin/oci iam tenancy get --tenancy-id "$TENANCY_OCID" --auth instance_principal --query "data.name" --raw-output 2>/dev/null || echo "tenant")
 echo -e "[+] 自动识别真实租户名: ${GREEN}${TENANT_NAME}${PLAIN}"
@@ -85,7 +98,7 @@ echo -e "[+] 自动识别真实租户名: ${GREEN}${TENANT_NAME}${PLAIN}"
 COUNTRY_CODE=$(curl -s --max-time 5 http://ip-api.com/json/ | grep -o '"countryCode":"[^"]*"' | awk -F'"' '{print $4}' | tr '[:upper:]' '[:lower:]' || echo "xx")
 echo -e "[+] 自动探测出口国家码: ${GREEN}${COUNTRY_CODE}${PLAIN}"
 
-# 5. 交互式录入（若未通过命令行参数指定）
+# 6. 交互式录入（若未通过命令行参数指定）
 echo -e "\n${YELLOW}[3/4] 配置 Cloudflare 与基础域名（仅需 3 项）：${PLAIN}"
 if [ -z "$CF_TOKEN" ]; then
     read -p "1. 请输入 Cloudflare API Token (需具备 DNS Write 权限): " CF_TOKEN
@@ -124,7 +137,7 @@ cat << EOF > /etc/oci_ddns/config.json
 EOF
 chmod 600 /etc/oci_ddns/config.json
 
-# 6. 配置 Systemd 定时服务
+# 7. 配置 Systemd 定时服务
 echo -e "\n${YELLOW}[4/4] 注册系统服务与定时调度器...${PLAIN}"
 cat << EOF > /etc/systemd/system/oci-ddns.service
 [Unit]
@@ -133,7 +146,7 @@ After=network.target
 
 [Service]
 Type=oneshot
-ExecStart=${OCI_PYTHON} /usr/local/bin/oci_change_ip_ddns.py
+ExecStart=${OCI_PYTHON} ${TARGET_PY}
 StandardOutput=append:/var/log/oci_ddns.log
 StandardError=append:/var/log/oci_ddns.log
 EOF
