@@ -30,6 +30,14 @@
        instance.id = '你的第二台机器OCID'
      }
      ```
+   * **Matching rule（匹配规则）**：或者填入CompartmentID(适用于某个区间下面的所有机器)：
+
+     ```text
+     Any {
+       instance.id = '你的第一台机器OCID',
+       instance.id = '你的第二台机器OCID'
+     }
+     ```
    * 点击创建。
 
 ---
