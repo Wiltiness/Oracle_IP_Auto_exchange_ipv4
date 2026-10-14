@@ -34,8 +34,7 @@
 
      ```text
      Any {
-       instance.id = '你的第一台机器OCID',
-       instance.id = '你的第二台机器OCID'
+       instance.compartment.id = 'xxxxxxxxxxxxxxxxxxxxxxxx'
      }
      ```
    * 点击创建。
