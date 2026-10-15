@@ -70,7 +70,7 @@ def sync_cloudflare_ddns(cf_token, zone_id, full_domain, new_ip, proxied=False):
 
     payload = {
         "name": full_domain,
-        "ttl": 1,
+        "ttl": 60,
         "type": "A",
         "comment": (
             "Auto-updated by OCI auto-switcher at"
